@@ -1,0 +1,21 @@
+# Virtual environments
+venv/
+backend/venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Environment variables
+.env
+
+# Model files
+*.pth
+*.onnx
+
+# Logs / temp
+*.log
+outputs/
