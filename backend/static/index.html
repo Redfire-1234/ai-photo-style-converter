@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Photo Style Converter</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 AI Style Converter</h1>
+            <p>Transform photos and videos into art</p>
+        </header>
+
+        <main>
+            <!-- Compact Upload Area -->
+            <section class="upload-section">
+                <!-- Updated to accept both images and videos -->
+                <input type="file" id="fileInput" accept="image/*,video/*,.gif" hidden>
+                
+                <div class="upload-controls">
+                    <button class="btn btn-upload" id="uploadBtn">
+                        📁 Upload
+                    </button>
+                    <button class="btn btn-camera" id="cameraBtn">
+                        📷 Camera
+                    </button>
+                    <button class="btn btn-remove" id="removeBtn" style="display: none;">
+                        🗑️ Remove
+                    </button>
+                </div>
+
+                <!-- Camera Modal -->
+                <div class="camera-modal" id="cameraModal" style="display: none;">
+                    <div class="camera-content">
+                        <video id="cameraPreview" autoplay></video>
+                        <div class="camera-btns">
+                            <button class="btn btn-success" id="captureBtn">📸 Capture</button>
+                            <button class="btn btn-danger" id="closeCameraBtn">✖ Close</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Compact Preview -->
+            <section class="preview-section" id="previewSection" style="display: none;">
+                <div class="preview-container">
+                    <div class="image-box">
+                        <span class="image-label">Original</span>
+                        <img id="originalImage" alt="Original" style="display: none;">
+                        <video id="originalVideo" controls style="display: none; max-width: 100%;"></video>
+                    </div>
+                    
+                    <div class="arrow">→</div>
+                    
+                    <div class="image-box">
+                        <span class="image-label">Styled</span>
+                        <div id="styledContainer">
+                            <img id="styledImage" alt="Styled" style="display: none;">
+                            <video id="styledVideo" controls style="display: none; max-width: 100%;"></video>
+                            <div class="loader" id="loader" style="display: none;"></div>
+                            <!-- Added missing processingInfo element -->
+                            <div id="processingInfo" class="processing-info" style="display: none;">
+                                <p>⏳ Processing video... This may take a while</p>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressFill"></div>
+                                </div>
+                            </div>
+                            <p id="placeholderText" class="placeholder">Select style below</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Intensity Control -->
+                <div class="intensity-control" id="intensityControl" style="display: none;">
+                    <label>
+                        <span>Intensity:</span>
+                        <input type="range" id="intensitySlider" min="0" max="100" value="100">
+                        <span id="intensityValue">100%</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Compact Style Grid -->
+            <section class="style-section" id="styleSection" style="display: none;">
+                <h3>Choose Style</h3>
+                
+                <!-- Style Categories -->
+                <div class="style-tabs">
+                    <button class="tab-btn active" data-category="all">All</button>
+                    <button class="tab-btn" data-category="opencv">Classic</button>
+                    <button class="tab-btn" data-category="neural">Artistic</button>
+                    <button class="tab-btn" data-category="anime">Anime</button>
+                </div>
+
+                <div class="style-grid" id="styleGrid"></div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons">
+                    <button class="btn btn-success" id="downloadBtn" style="display: none;">
+                        💾 Download
+                    </button>
+                    <button class="btn btn-primary" id="addAnotherBtn" style="display: none;">
+                        ➕ Add Another
+                    </button>
+                    <button class="btn btn-secondary" id="compareBtn" style="display: none;">
+                        👁️ Compare
+                    </button>
+                </div>
+            </section>
+
+            <!-- Comparison Modal -->
+            <div class="comparison-modal" id="comparisonModal" style="display: none;">
+                <div class="comparison-content">
+                    <button class="close-modal" id="closeComparisonBtn">✖</button>
+                    <div class="comparison-slider">
+                        <img id="comparisonOriginal" class="comparison-img">
+                        <div class="comparison-overlay" id="comparisonOverlay">
+                            <img id="comparisonStyled" class="comparison-img">
+                        </div>
+                        <input type="range" id="comparisonSlider" min="0" max="100" value="50" class="slider-control">
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>FastAPI • PyTorch • OpenCV | <span id="styleCount">14 styles</span></p>
+        </footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/upload.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
