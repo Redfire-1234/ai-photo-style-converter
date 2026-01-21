@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  ai-style-converter:
+    build: .
+    container_name: ai-style-converter
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/pretrained:/app/backend/pretrained
+      - ./backend/static:/app/backend/static
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    restart: unless-stopped
+    
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
