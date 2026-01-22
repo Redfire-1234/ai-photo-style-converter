@@ -1,6 +1,7 @@
 import os
-import gdown
+import requests
 from pathlib import Path
+from tqdm import tqdm
 
 # Create pretrained directory if it doesn't exist
 MODELS_DIR = Path(__file__).parent / "pretrained"
@@ -18,28 +19,52 @@ MODELS = {
     "rain_princess.pth": "1HiQjcirwE5l7rVx68kbQUn3cgEVRjsep"
 }
 
-
 def download_from_gdrive(file_id, output_path):
-    url = f"https://drive.google.com/uc?id={file_id}"
+    """Download file from Google Drive using requests"""
+    def get_confirm_token(response):
+        for key, value in response.cookies.items():
+            if key.startswith('download_warning'):
+                return value
+        return None
+
+    def save_response_content(response, destination):
+        CHUNK_SIZE = 32768
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(CHUNK_SIZE):
+                if chunk:
+                    f.write(chunk)
+
+    URL = "https://docs.google.com/uc?export=download"
+    
     try:
-        gdown.download(url, str(output_path), quiet=False)
-        return output_path.exists() and output_path.stat().st_size > 0
-    except:
-        # Fallback to direct download
-        gdown.download(id=file_id, output=str(output_path), quiet=False)
-        return output_path.exists() and output_path.stat().st_size > 0
-
-
+        print(f"  Downloading from Google Drive (ID: {file_id})...")
+        
+        session = requests.Session()
+        response = session.get(URL, params={'id': file_id}, stream=True)
+        
+        # Check for download warning (large file confirmation)
+        token = get_confirm_token(response)
+        if token:
+            params = {'id': file_id, 'confirm': token}
+            response = session.get(URL, params=params, stream=True)
+        
+        # Save the file
+        save_response_content(response, output_path)
+        
         # Verify file was downloaded
         if output_path.exists() and output_path.stat().st_size > 0:
             print(f"  ✓ File size: {output_path.stat().st_size / (1024*1024):.2f} MB")
             return True
         else:
             print(f"  ✗ Download failed or file is empty")
+            if output_path.exists():
+                output_path.unlink()
             return False
             
     except Exception as e:
         print(f"  ✗ Error downloading: {e}")
+        if output_path.exists():
+            output_path.unlink()
         return False
 
 def download_all_models():
