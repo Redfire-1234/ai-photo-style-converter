@@ -1,5 +1,5 @@
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import io
 import uuid
@@ -27,8 +27,12 @@ style_loader = StyleLoader()
 # In-memory storage for images and videos
 media_storage = {}
 
-@app.get("/")
-async def root():
+# Define static directory
+static_dir = Path(__file__).parent / "static"
+
+# API ROUTES (all under /api prefix)
+@app.get("/api")
+async def api_root():
     return {"message": "AI Photo Style Converter API", "status": "running"}
 
 @app.get("/api/styles")
@@ -82,7 +86,7 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.post("/api/convert")
 async def convert_style(
-    media_id: str = Form(...),  # Changed from image_id to media_id
+    media_id: str = Form(...),
     style: str = Form(...)
 ):
     """Apply style to uploaded image or video"""
@@ -153,25 +157,28 @@ async def convert_style(
         raise HTTPException(500, f"Style conversion failed: {str(e)}")
 
 @app.delete("/api/delete/{media_id}")
-async def delete_media(media_id: str):  # Changed parameter name for consistency
+async def delete_media(media_id: str):
     """Delete media from storage"""
     if media_id in media_storage:
         del media_storage[media_id]
         return {"message": "Media deleted"}
     raise HTTPException(404, "Media not found")
 
-static_dir = Path(__file__).parent / "static"
-app.mount("/app", StaticFiles(directory=str(static_dir), html=True), name="static")
+# STATIC FILES - Mount static assets (CSS, JS, images, etc.)
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# FRONTEND - Serve index.html at root
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend UI"""
+    index_file = static_dir / "index.html"
+    if index_file.exists():
+        return FileResponse(str(index_file))
+    return {"error": "Frontend not found. Make sure static/index.html exists."}
 
 if __name__ == "__main__":
     import uvicorn
     import os
-    from pathlib import Path
-    from fastapi.staticfiles import StaticFiles
-    
-    # Mount frontend
-    static_dir = Path(__file__).parent / "static"
-    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
     
     # Get port from environment
     port = int(os.environ.get("PORT", 8000))
@@ -180,6 +187,9 @@ if __name__ == "__main__":
     print("🎨 AI PHOTO STYLE CONVERTER")
     print("="*70)
     print(f"✅ Server starting on port {port}")
+    print("="*70 + "\n")
+    print("🔗 OPEN YOUR APP:")
+    print(f"👉 http://localhost:{port}")
     print("="*70 + "\n")
     
     uvicorn.run(app, host="0.0.0.0", port=port)
