@@ -1,9 +1,11 @@
 import os
 
+import os
+
 class Config:
-    # Server
-    HOST = "0.0.0.0"
-    PORT = 8000
+    HOST = os.getenv("HOST", "0.0.0.0")
+    PORT = int(os.getenv("PORT", 8000))
+    
     
     # Paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
