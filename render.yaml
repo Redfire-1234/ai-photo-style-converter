@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: ai-style-converter
+    env: python
+    region: oregon
+    plan: free  # or 'starter' for $7/month
+    buildCommand: "cd backend && pip install -r requirements.txt"
+    startCommand: "cd backend && python app.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+    healthCheckPath: /
