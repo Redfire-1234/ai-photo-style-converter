@@ -11,10 +11,11 @@ from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 import sys
 import subprocess
+import gc
+import traceback
 
-# Download models on startup function
+# Download models on startup
 def ensure_models_downloaded():
-    """Ensure all required models are downloaded"""
     pretrained_dir = Path(__file__).parent / "pretrained"
     pretrained_dir.mkdir(exist_ok=True)
     
@@ -31,8 +32,8 @@ def ensure_models_downloaded():
     
     if missing_models:
         print("=" * 70)
-        print(f"⚠️  Missing {len(missing_models)} model files: {', '.join(missing_models)}")
-        print("📥 Downloading models from Google Drive...")
+        print(f"⚠️  Missing models: {', '.join(missing_models)}")
+        print("📥 Downloading...")
         print("=" * 70)
         
         try:
@@ -40,28 +41,21 @@ def ensure_models_downloaded():
                 [sys.executable, "download_models.py"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                timeout=600  # 10 minute timeout
             )
             print(result.stdout)
-            print("✅ Models downloaded successfully!")
-            
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Model download failed:")
-            print(e.stdout)
-            print(e.stderr)
-            print("⚠️  App will start but some styles may not work")
+            print("✅ Models downloaded!")
         except Exception as e:
-            print(f"❌ Unexpected error during model download: {e}")
-            print("⚠️  App will start but some styles may not work")
+            print(f"❌ Download failed: {e}")
+            print("⚠️  Some styles may not work")
     else:
-        print("✅ All model files present")
+        print("✅ All models present")
 
-# Run model check before app initialization
 ensure_models_downloaded()
 
 app = FastAPI(title="AI Photo Style Converter API")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,16 +64,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize style loader AFTER ensuring models are downloaded
-style_loader = StyleLoader()
+# Initialize with error handling
+try:
+    style_loader = StyleLoader()
+    print(f"✅ StyleLoader initialized with {len(style_loader.models)} models")
+except Exception as e:
+    print(f"⚠️ StyleLoader initialization warning: {e}")
+    style_loader = StyleLoader()
 
-# In-memory storage for images and videos
 media_storage = {}
-
-# Define static directory
 static_dir = Path(__file__).parent / "static"
 
-# ========== API ROUTES (MUST BE DEFINED BEFORE STATIC MOUNTS) ==========
+# ========== API ROUTES ==========
 
 @app.get("/api")
 async def api_root():
@@ -97,18 +93,18 @@ async def get_styles():
 
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)):
-    """Upload image or video and return media_id"""
+    """Upload image or video"""
     is_valid_image = ImageProcessor.validate_extension(file.filename, {"jpg", "jpeg", "png", "webp"})
     is_valid_video = VideoProcessor.is_video(file.filename)
     
     if not (is_valid_image or is_valid_video):
-        raise HTTPException(400, "Invalid file extension. Supported: images (jpg, png, webp) and videos (mp4, avi, mov, mkv, webm, gif)")
+        raise HTTPException(400, "Invalid file type")
     
     try:
         contents = await file.read()
         
         if len(contents) > Config.MAX_FILE_SIZE_MB * 1024 * 1024:
-            raise HTTPException(400, f"File too large. Maximum size: {Config.MAX_FILE_SIZE_MB}MB")
+            raise HTTPException(400, f"File too large. Max: {Config.MAX_FILE_SIZE_MB}MB")
         
         media_id = str(uuid.uuid4())
         is_video = VideoProcessor.is_video(file.filename)
@@ -119,16 +115,18 @@ async def upload_image(file: UploadFile = File(...)):
             'is_video': is_video
         }
         
-        print(f"✅ Uploaded: {file.filename} (ID: {media_id}, Video: {is_video})")
+        print(f"✅ Upload: {file.filename} → {media_id}")
         
         return {
-            "media_id": media_id, 
+            "media_id": media_id,
             "filename": file.filename,
             "is_video": is_video
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Upload failed: {e}")
+        print(f"❌ Upload error: {e}")
         raise HTTPException(500, f"Upload failed: {str(e)}")
 
 @app.post("/api/convert")
@@ -136,49 +134,81 @@ async def convert_style(
     media_id: str = Form(...),
     style: str = Form(...)
 ):
-    """Apply style to uploaded image or video"""
-    print(f"🎨 Convert request - Media ID: {media_id}, Style: {style}")
+    """Apply style to media"""
+    print(f"\n{'='*70}")
+    print(f"🎨 CONVERT REQUEST")
+    print(f"Media ID: {media_id}")
+    print(f"Style: {style}")
+    print(f"Storage has {len(media_storage)} items")
+    print(f"{'='*70}\n")
     
+    # Validate media exists
     if media_id not in media_storage:
-        print(f"❌ Media not found: {media_id}")
-        print(f"Available media IDs: {list(media_storage.keys())}")
-        raise HTTPException(404, "Media not found")
+        available = list(media_storage.keys())
+        print(f"❌ Media not found!")
+        print(f"Available IDs: {available}")
+        raise HTTPException(404, "Media not found. Please re-upload your file.")
     
+    # Validate style
     if style not in Config.ALL_STYLES:
-        raise HTTPException(400, f"Invalid style. Available: {Config.ALL_STYLES}")
+        raise HTTPException(400, f"Invalid style: {style}")
+    
+    media_info = media_storage[media_id]
+    media_data = media_info['data']
+    is_video = media_info['is_video']
+    filename = media_info['filename']
     
     try:
-        media_info = media_storage[media_id]
-        media_data = media_info['data']
-        is_video = media_info['is_video']
-        filename = media_info['filename']
-        
-        print(f"Processing {filename} with style: {style}")
-        
         if is_video:
-            print(f"Processing video with style: {style}")
+            print(f"📹 Processing video: {filename}")
             
+            # Extract frames
             if VideoProcessor.is_gif(filename):
                 frames, fps = VideoProcessor.extract_gif_frames(media_data)
             else:
                 frames, fps = VideoProcessor.extract_frames(media_data)
             
-            print(f"Extracted {len(frames)} frames at {fps} FPS")
+            print(f"📊 {len(frames)} frames @ {fps}fps")
             
+            # Limit frames for free tier (prevent timeout)
+            max_frames = 100
+            if len(frames) > max_frames:
+                print(f"⚠️  Limiting to {max_frames} frames")
+                frames = frames[:max_frames]
+            
+            # Process frames
             styled_frames = []
             for i, frame in enumerate(frames):
                 if i % 10 == 0:
-                    print(f"Processing frame {i+1}/{len(frames)}")
-                styled_frame = style_loader.apply_style(frame, style)
-                styled_frames.append(styled_frame)
+                    print(f"⏳ Frame {i+1}/{len(frames)}")
+                
+                try:
+                    styled_frame = style_loader.apply_style(frame, style)
+                    styled_frames.append(styled_frame)
+                except Exception as e:
+                    print(f"❌ Frame {i} failed: {e}")
+                    styled_frames.append(frame)  # Use original on error
+                
+                # Free memory
+                if i % 20 == 0:
+                    gc.collect()
             
+            # Create video
             output_format = 'gif' if VideoProcessor.is_gif(filename) else 'mp4'
             video_bytes = VideoProcessor.create_video(styled_frames, fps, output_format)
             
             if not video_bytes:
-                raise HTTPException(500, "Failed to create output video")
+                raise Exception("Video creation failed")
+            
+            print(f"✅ Video processed: {len(video_bytes)} bytes")
             
             media_type = 'image/gif' if output_format == 'gif' else 'video/mp4'
+            
+            # Clean up
+            del frames
+            del styled_frames
+            gc.collect()
+            
             return StreamingResponse(
                 io.BytesIO(video_bytes),
                 media_type=media_type,
@@ -189,11 +219,20 @@ async def convert_style(
         
         else:
             # Process image
+            print(f"🖼️  Processing image: {filename}")
+            
             img = ImageProcessor.load_image(media_data, Config.MAX_IMAGE_SIZE)
+            print(f"📊 Image size: {img.shape}")
+            
             styled_img = style_loader.apply_style(img, style)
             img_bytes = ImageProcessor.image_to_bytes(styled_img)
             
-            print(f"✅ Style applied successfully")
+            print(f"✅ Image processed: {len(img_bytes)} bytes")
+            
+            # Clean up
+            del img
+            del styled_img
+            gc.collect()
             
             return StreamingResponse(
                 io.BytesIO(img_bytes),
@@ -203,34 +242,49 @@ async def convert_style(
                 }
             )
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Conversion error: {e}")
-        import traceback
+        error_msg = str(e)
+        print(f"\n{'='*70}")
+        print(f"❌ CONVERSION ERROR")
+        print(f"Style: {style}")
+        print(f"Error: {error_msg}")
+        print(f"Traceback:")
         traceback.print_exc()
-        raise HTTPException(500, f"Style conversion failed: {str(e)}")
+        print(f"{'='*70}\n")
+        
+        # Clean up on error
+        gc.collect()
+        
+        # Return user-friendly error
+        if "Model for" in error_msg and "not loaded" in error_msg:
+            raise HTTPException(500, f"Style '{style}' is currently unavailable. Try another style.")
+        elif "memory" in error_msg.lower():
+            raise HTTPException(500, "Out of memory. Try a smaller file or simpler style.")
+        else:
+            raise HTTPException(500, f"Processing failed: {error_msg}")
 
 @app.delete("/api/delete/{media_id}")
 async def delete_media(media_id: str):
-    """Delete media from storage"""
+    """Delete media"""
     if media_id in media_storage:
         del media_storage[media_id]
-        print(f"🗑️  Deleted media: {media_id}")
+        gc.collect()
+        print(f"🗑️  Deleted: {media_id}")
         return {"message": "Media deleted"}
     raise HTTPException(404, "Media not found")
 
-# ========== STATIC FILES AND FRONTEND (AFTER API ROUTES) ==========
+# ========== FRONTEND ==========
 
-# Mount static assets
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
-# Serve frontend
 @app.get("/")
 async def serve_frontend():
-    """Serve the frontend UI"""
     index_file = static_dir / "index.html"
     if index_file.exists():
         return FileResponse(str(index_file))
-    return {"error": "Frontend not found. Make sure static/index.html exists."}
+    return JSONResponse({"error": "Frontend not found"}, status_code=404)
 
 if __name__ == "__main__":
     import uvicorn
@@ -241,10 +295,7 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     print("🎨 AI PHOTO STYLE CONVERTER")
     print("="*70)
-    print(f"✅ Server starting on port {port}")
-    print("="*70 + "\n")
-    print("🔗 OPEN YOUR APP:")
-    print(f"👉 http://localhost:{port}")
+    print(f"✅ Server on port {port}")
     print("="*70 + "\n")
     
     uvicorn.run(app, host="0.0.0.0", port=port)
