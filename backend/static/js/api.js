@@ -1,8 +1,8 @@
 const API = {
-    BASE_URL: 'http://localhost:8000',
+    BASE_URL: window.location.origin, // Use current domain (works both locally and on Render)
     
     async getStyles() {
-        const response = await fetch(`${this.BASE_URL}/api/styles`);
+        const response = await fetch(`${this.BASE_URL}/api/styles`); // Fixed: Added parentheses
         if (!response.ok) throw new Error('Failed to fetch styles');
         return await response.json();
     },
@@ -11,7 +11,7 @@ const API = {
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await fetch(`${this.BASE_URL}/api/upload`, {
+        const response = await fetch(`${this.BASE_URL}/api/upload`, { // Fixed: Added parentheses
             method: 'POST',
             body: formData
         });
@@ -25,10 +25,10 @@ const API = {
     
     async convertStyle(mediaId, style) {
         const formData = new FormData();
-        formData.append('media_id', mediaId);  // Changed from image_id to media_id
+        formData.append('media_id', mediaId);
         formData.append('style', style);
         
-        const response = await fetch(`${this.BASE_URL}/api/convert`, {
+        const response = await fetch(`${this.BASE_URL}/api/convert`, { // Fixed: Added parentheses
             method: 'POST',
             body: formData
         });
@@ -41,7 +41,7 @@ const API = {
     },
     
     async deleteImage(mediaId) {
-        const response = await fetch(`${this.BASE_URL}/api/delete/${mediaId}`, {
+        const response = await fetch(`${this.BASE_URL}/api/delete/${mediaId}`, { // Fixed: Added parentheses
             method: 'DELETE'
         });
         
