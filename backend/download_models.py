@@ -23,8 +23,15 @@ def download_from_gdrive(file_id, output_path):
     url = f"https://drive.google.com/uc?id={file_id}"
     try:
         print(f"  Downloading from: {url}")
-        gdown.download(url, str(output_path), quiet=False, fuzzy=True)
-        
+        # gdown.download(url, str(output_path), quiet=False, fuzzy=True)
+        gdown.download(
+            url=url,
+            output=str(output_path),
+            quiet=False,
+            fuzzy=True,
+            use_cookies=False
+        )
+
         # Verify file was downloaded
         if output_path.exists() and output_path.stat().st_size > 0:
             print(f"  ✓ File size: {output_path.stat().st_size / (1024*1024):.2f} MB")
