@@ -18,19 +18,17 @@ MODELS = {
     "rain_princess.pth": "1HiQjcirwE5l7rVx68kbQUn3cgEVRjsep"
 }
 
+
 def download_from_gdrive(file_id, output_path):
-    """Download file from Google Drive using gdown"""
     url = f"https://drive.google.com/uc?id={file_id}"
     try:
-        print(f"  Downloading from: {url}")
-        # gdown.download(url, str(output_path), quiet=False, fuzzy=True)
-        gdown.download(
-            url=url,
-            output=str(output_path),
-            quiet=False,
-            fuzzy=True,
-            use_cookies=False
-        )
+        gdown.download(url, str(output_path), quiet=False)
+        return output_path.exists() and output_path.stat().st_size > 0
+    except:
+        # Fallback to direct download
+        gdown.download(id=file_id, output=str(output_path), quiet=False)
+        return output_path.exists() and output_path.stat().st_size > 0
+
 
         # Verify file was downloaded
         if output_path.exists() and output_path.stat().st_size > 0:
