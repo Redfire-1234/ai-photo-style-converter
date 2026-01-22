@@ -1,21 +1,39 @@
-# Virtual environments
+# Python
 venv/
-backend/venv/
-
-# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
 
-# Node
-node_modules/
-
-# Environment variables
+# Environment
 .env
+.venv
 
-# Model files
-*.pth
-*.onnx
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# Logs / temp
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
-outputs/
+temp/
+
+# Model files (too large for git)
+*.pth
+*.pt
+backend/pretrained/*.pth
+backend/pretrained/*.pt
+
+# Keep directory structure
+!backend/pretrained/.gitkeep
