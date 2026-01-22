@@ -165,12 +165,21 @@ app.mount("/app", StaticFiles(directory=str(static_dir), html=True), name="stati
 
 if __name__ == "__main__":
     import uvicorn
+    import os
+    from pathlib import Path
+    from fastapi.staticfiles import StaticFiles
+    
+    # Mount frontend
+    static_dir = Path(__file__).parent / "static"
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+    
+    # Get port from environment
+    port = int(os.environ.get("PORT", 8000))
     
     print("\n" + "="*70)
     print("🎨 AI PHOTO STYLE CONVERTER")
     print("="*70)
-    print("\n🔗 CLICK HERE TO OPEN YOUR APP:")
-    print("👉 http://localhost:8000/app")
+    print(f"✅ Server starting on port {port}")
     print("="*70 + "\n")
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=port)
