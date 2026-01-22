@@ -78,22 +78,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize style loader AFTER ensuring models are downloaded
-style_loader = StyleLoader()
-
-# ... rest of your code stays the same ...
-
-app = FastAPI(title="AI Photo Style Converter API")
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Initialize style loader
 style_loader = StyleLoader()
 
