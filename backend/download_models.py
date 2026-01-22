@@ -21,6 +21,10 @@ MODELS = {
     "hayao.pth": "19CyAIpRnzAlI_M-72SA_Kg8BswchgDJ4", 
     "hosoda.pth": "1RrRLD-2vO3fG0CFE1ianJx7OX663zCXc",
     "paprika.pth": "1UR-RVuelUmyuBIs4qdh9rrT1wwP5IjfU",
+    "candy.pth":"1GVpEZab4ULuaWFTW86bNWID7QcaEnjld",
+    "mosaic.pth":"1ja1uH-J3vc5vq-kLPTa5fREa7t7Bn5vZ",
+    "udnie.pth":"1Bb9Oaq9nGClp5_RviyxhG_bqeA0rjyHa",
+    "rain_princess.pth":"1HiQjcirwE5l7rVx68kbQUn3cgEVRjsep"
 }
 
 def download_from_gdrive(file_id, output_path):
