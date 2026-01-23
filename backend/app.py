@@ -13,6 +13,9 @@ import sys
 import subprocess
 import gc
 import traceback
+import numpy as np
+import cv2
+from PIL import Image
 
 # Download models on startup
 def ensure_models_downloaded():
@@ -177,14 +180,17 @@ async def convert_style(
                     print(f"⏳ Frame {i+1}/{len(frames)}")
                 
                 try:
-                    # Convert frame to PIL Image
-                    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    # Frame is already numpy array from OpenCV
+                    # Apply style (handles conversion internally)
+                    styled_result = style_loader.apply_style(frame, style)
                     
-                    # Apply style (returns PIL Image)
-                    styled_pil = style_loader.apply_style(frame_pil, style)
+                    # Convert PIL result back to numpy for video encoding
+                    if isinstance(styled_result, Image.Image):
+                        styled_frame = np.array(styled_result)
+                        styled_frame = cv2.cvtColor(styled_frame, cv2.COLOR_RGB2BGR)
+                    else:
+                        styled_frame = styled_result
                     
-                    # Convert back to numpy for video encoding
-                    styled_frame = cv2.cvtColor(np.array(styled_pil), cv2.COLOR_RGB2BGR)
                     styled_frames.append(styled_frame)
                     
                 except Exception as e:
@@ -218,7 +224,7 @@ async def convert_style(
             
             # Load as PIL Image
             img = ImageProcessor.load_image(media_data, Config.MAX_IMAGE_SIZE)
-            print(f"📊 Image size: {img.size}")
+            print(f"📊 Image size: {img.size}")  # ✅ FIXED: Use .size instead of .shape
             
             # Apply style (returns PIL Image)
             styled_img = style_loader.apply_style(img, style)
@@ -226,7 +232,7 @@ async def convert_style(
             # Convert to bytes
             img_bytes = ImageProcessor.image_to_bytes(styled_img)
             
-            print(f"✅ Image processed")
+            print(f"✅ Image processed: {len(img_bytes)} bytes")
             
             del img, styled_img
             gc.collect()
@@ -256,7 +262,7 @@ async def convert_style(
             raise HTTPException(500, "Out of memory. Try smaller file.")
         else:
             raise HTTPException(500, f"Processing failed: {error_msg}")
-
+            
 @app.delete("/api/delete/{media_id}")
 async def delete_media(media_id: str):
     """Delete media"""
