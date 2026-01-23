@@ -139,17 +139,12 @@ async def convert_style(
     print(f"🎨 CONVERT REQUEST")
     print(f"Media ID: {media_id}")
     print(f"Style: {style}")
-    print(f"Storage has {len(media_storage)} items")
     print(f"{'='*70}\n")
     
-    # Validate media exists
     if media_id not in media_storage:
-        available = list(media_storage.keys())
-        print(f"❌ Media not found!")
-        print(f"Available IDs: {available}")
-        raise HTTPException(404, "Media not found. Please re-upload your file.")
+        print(f"❌ Media not found: {media_id}")
+        raise HTTPException(404, "Media not found. Please re-upload.")
     
-    # Validate style
     if style not in Config.ALL_STYLES:
         raise HTTPException(400, f"Invalid style: {style}")
     
@@ -162,7 +157,6 @@ async def convert_style(
         if is_video:
             print(f"📹 Processing video: {filename}")
             
-            # Extract frames
             if VideoProcessor.is_gif(filename):
                 frames, fps = VideoProcessor.extract_gif_frames(media_data)
             else:
@@ -170,7 +164,7 @@ async def convert_style(
             
             print(f"📊 {len(frames)} frames @ {fps}fps")
             
-            # Limit frames for free tier (prevent timeout)
+            # Limit frames
             max_frames = 100
             if len(frames) > max_frames:
                 print(f"⚠️  Limiting to {max_frames} frames")
@@ -183,63 +177,64 @@ async def convert_style(
                     print(f"⏳ Frame {i+1}/{len(frames)}")
                 
                 try:
-                    styled_frame = style_loader.apply_style(frame, style)
+                    # Convert frame to PIL Image
+                    frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                    
+                    # Apply style (returns PIL Image)
+                    styled_pil = style_loader.apply_style(frame_pil, style)
+                    
+                    # Convert back to numpy for video encoding
+                    styled_frame = cv2.cvtColor(np.array(styled_pil), cv2.COLOR_RGB2BGR)
                     styled_frames.append(styled_frame)
+                    
                 except Exception as e:
                     print(f"❌ Frame {i} failed: {e}")
-                    styled_frames.append(frame)  # Use original on error
+                    styled_frames.append(frame)
                 
-                # Free memory
                 if i % 20 == 0:
                     gc.collect()
             
-            # Create video
             output_format = 'gif' if VideoProcessor.is_gif(filename) else 'mp4'
             video_bytes = VideoProcessor.create_video(styled_frames, fps, output_format)
             
             if not video_bytes:
                 raise Exception("Video creation failed")
             
-            print(f"✅ Video processed: {len(video_bytes)} bytes")
+            print(f"✅ Video processed")
             
-            media_type = 'image/gif' if output_format == 'gif' else 'video/mp4'
-            
-            # Clean up
-            del frames
-            del styled_frames
+            del frames, styled_frames
             gc.collect()
             
+            media_type = 'image/gif' if output_format == 'gif' else 'video/mp4'
             return StreamingResponse(
                 io.BytesIO(video_bytes),
                 media_type=media_type,
-                headers={
-                    "Content-Disposition": f"attachment; filename=styled_{style}.{output_format}"
-                }
+                headers={"Content-Disposition": f"attachment; filename=styled_{style}.{output_format}"}
             )
         
         else:
             # Process image
             print(f"🖼️  Processing image: {filename}")
             
+            # Load as PIL Image
             img = ImageProcessor.load_image(media_data, Config.MAX_IMAGE_SIZE)
-            print(f"📊 Image size: {img.shape}")
+            print(f"📊 Image size: {img.size}")
             
+            # Apply style (returns PIL Image)
             styled_img = style_loader.apply_style(img, style)
+            
+            # Convert to bytes
             img_bytes = ImageProcessor.image_to_bytes(styled_img)
             
-            print(f"✅ Image processed: {len(img_bytes)} bytes")
+            print(f"✅ Image processed")
             
-            # Clean up
-            del img
-            del styled_img
+            del img, styled_img
             gc.collect()
             
             return StreamingResponse(
                 io.BytesIO(img_bytes),
                 media_type="image/jpeg",
-                headers={
-                    "Content-Disposition": f"attachment; filename=styled_{style}.jpg"
-                }
+                headers={"Content-Disposition": f"attachment; filename=styled_{style}.jpg"}
             )
     
     except HTTPException:
@@ -250,18 +245,15 @@ async def convert_style(
         print(f"❌ CONVERSION ERROR")
         print(f"Style: {style}")
         print(f"Error: {error_msg}")
-        print(f"Traceback:")
         traceback.print_exc()
         print(f"{'='*70}\n")
         
-        # Clean up on error
         gc.collect()
         
-        # Return user-friendly error
         if "Model for" in error_msg and "not loaded" in error_msg:
-            raise HTTPException(500, f"Style '{style}' is currently unavailable. Try another style.")
+            raise HTTPException(500, f"Style '{style}' unavailable. Model file missing.")
         elif "memory" in error_msg.lower():
-            raise HTTPException(500, "Out of memory. Try a smaller file or simpler style.")
+            raise HTTPException(500, "Out of memory. Try smaller file.")
         else:
             raise HTTPException(500, f"Processing failed: {error_msg}")
 
