@@ -49,7 +49,7 @@ class Config:
     ALL_STYLES = OPENCV_STYLES + NEURAL_STYLES + CARTOON_STYLES
     
     # Image settings
-    MAX_IMAGE_SIZE = 1024
+    MAX_IMAGE_SIZE = 512
     # Updated to include video formats
     ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "mp4", "avi", "mov", "mkv", "webm", "gif"}
     VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv", "webm", "gif"}
