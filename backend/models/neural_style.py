@@ -24,7 +24,7 @@ class TransformerNet(nn.Module):
         self.in5 = nn.InstanceNorm2d(32, affine=True)
         self.deconv3 = ConvLayer(32, 3, 9, 1)
         self.relu = nn.ReLU()
-
+    
     def forward(self, x):
         y = self.relu(self.in1(self.conv1(x)))
         y = self.relu(self.in2(self.conv2(y)))
@@ -45,7 +45,7 @@ class ConvLayer(nn.Module):
         padding = kernel_size // 2
         self.reflection_pad = nn.ReflectionPad2d(padding)
         self.conv2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride)
-
+    
     def forward(self, x):
         out = self.reflection_pad(x)
         out = self.conv2d(out)
@@ -59,7 +59,7 @@ class ResidualBlock(nn.Module):
         self.conv2 = ConvLayer(channels, channels, 3, 1)
         self.in2 = nn.InstanceNorm2d(channels, affine=True)
         self.relu = nn.ReLU()
-
+    
     def forward(self, x):
         residual = x
         out = self.relu(self.in1(self.conv1(x)))
@@ -74,7 +74,7 @@ class UpsampleConvLayer(nn.Module):
         reflection_padding = kernel_size // 2
         self.reflection_pad = nn.ReflectionPad2d(reflection_padding)
         self.conv2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride)
-
+    
     def forward(self, x):
         if self.upsample:
             x = nn.functional.interpolate(x, scale_factor=self.upsample, mode='nearest')
@@ -84,29 +84,55 @@ class UpsampleConvLayer(nn.Module):
 
 class NeuralStyler:
     def __init__(self, model_path):
+        self.device = torch.device('cpu')  # Force CPU to save memory
         self.model = TransformerNet()
+        
+        # Load with map_location to CPU
         state_dict = torch.load(model_path, map_location='cpu')
         
         # Remove running stats if present
         for key in list(state_dict.keys()):
-            if 'running_mean' in key or 'running_var' in key:
+            if 'running_mean' in key or 'running_var' in key or 'num_batches_tracked' in key:
                 del state_dict[key]
         
         self.model.load_state_dict(state_dict, strict=False)
         self.model.eval()
+        self.model.to(self.device)
         
+        # Clear cache
+        import gc
+        gc.collect()
+    
     def stylize(self, img):
+        """
+        Apply neural style transfer
+        Args:
+            img: PIL Image
+        Returns:
+            PIL Image
+        """
+        # Reduce size if too large (save memory)
+        max_size = 512
+        if max(img.size) > max_size:
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+        
         transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Lambda(lambda x: x.mul(255))
         ])
         
-        img_tensor = transform(img).unsqueeze(0)
+        img_tensor = transform(img).unsqueeze(0).to(self.device)
         
         with torch.no_grad():
             output = self.model(img_tensor)
         
-        output = output.squeeze(0).clamp(0, 255).numpy()
-        output = output.transpose(1, 2, 0).astype(np.uint8)
+        # Move to CPU immediately
+        output = output.cpu().squeeze(0).clamp(0, 255)
+        output = output.numpy().transpose(1, 2, 0).astype(np.uint8)
+        
+        # Clear cache
+        del img_tensor
+        import gc
+        gc.collect()
         
         return Image.fromarray(output)
