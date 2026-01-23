@@ -157,57 +157,66 @@ class Transformer(nn.Module):
 class CartoonGANStyler:
     def __init__(self, model_path, style_name="cartoon"):
         self.style_name = style_name
+        self.device = torch.device('cpu')  # Force CPU
         self.model = Transformer()
         
         try:
             state_dict = torch.load(model_path, map_location='cpu')
             self.model.load_state_dict(state_dict)
             self.model.eval()
+            self.model.to(self.device)
             print(f"  ✓ Loaded {style_name} CartoonGAN model")
+            
+            # Clear cache
+            import gc
+            gc.collect()
         except Exception as e:
             print(f"  ✗ Failed to load {style_name}: {e}")
             raise
     
     def stylize(self, img):
-        """
-        Apply cartoon style following the exact pipeline from the reference code
-        """
+        """Apply cartoon style with memory optimization"""
+        # Reduce size if too large
+        max_size = 512
         original_size = img.size
+        if max(img.size) > max_size:
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
         
         # Convert PIL to tensor [0, 1]
         transform = transforms.ToTensor()
-        img_tensor = transform(img).unsqueeze(0)
+        img_tensor = transform(img).unsqueeze(0).to(self.device)
         
-        # CRITICAL: Normalize to [-1, 1] as per reference code
+        # Normalize to [-1, 1]
         img_tensor = img_tensor * 2 - 1
         
         # Run model
         with torch.no_grad():
             output = self.model(img_tensor)
         
-        # Get first batch item
-        output = output[0]
+        # Move to CPU and process
+        output = output.cpu()[0]
         
-        # BGR -> RGB (as per reference code)
+        # BGR -> RGB
         output = output[[2, 1, 0], :, :]
         
-        # CRITICAL: Denormalize from [-1, 1] to [0, 1]
-        output = output.cpu().float() * 0.5 + 0.5
-        
-        # Clamp to valid range
+        # Denormalize from [-1, 1] to [0, 1]
+        output = output.float() * 0.5 + 0.5
         output = torch.clamp(output, 0, 1)
         
-        # Convert to numpy HWC format
+        # Convert to numpy
         output_np = output.permute(1, 2, 0).numpy()
-        
-        # Scale to [0, 255] and convert to uint8
         output_np = (output_np * 255).astype(np.uint8)
         
         # Create PIL Image
         result = Image.fromarray(output_np, 'RGB')
         
-        # Resize back to original size if needed
+        # Resize back if needed
         if result.size != original_size:
             result = result.resize(original_size, Image.LANCZOS)
+        
+        # Clear cache
+        del img_tensor, output
+        import gc
+        gc.collect()
         
         return result
